@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>心理学実験室</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Base styles for the layout */
+        body {
+            background-color: #f3f4f6; /* Light gray background */
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+        }
+
+        .container {
+            text-align: center;
+            padding: 2rem;
+            background-color: white;
+            border-radius: 1rem;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        h1 {
+            font-size: 2.5rem;
+            color: #1f2937;
+            margin-bottom: 2rem;
+            font-weight: bold;
+        }
+
+        .start-button {
+            background-color: #2563eb; /* Blue button */
+            color: white;
+            padding: 0.75rem 2rem;
+            font-size: 1.25rem;
+            border: none;
+            border-radius: 0.5rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease, transform 0.1s ease;
+        }
+
+        .start-button:hover {
+            background-color: #1d4ed8;
+        }
+
+        .start-button:active {
+            transform: scale(0.98);
+        }
+
+        /* Custom Alert Modal Style */
+        #custom-alert {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 1000;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .alert-content {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 0.5rem;
+            text-align: center;
+            min-width: 300px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>心理学実験室へようこそ</h1>
+        <button class="start-button" onclick="showAlert()">実験を開始する</button>
+    </div>
+
+    <!-- Custom Alert Box (Avoiding window.alert) -->
+    <div id="custom-alert">
+        <div class="alert-content">
+            <p id="alert-message" class="text-xl mb-4 text-gray-800 font-bold"></p>
+            <button onclick="closeAlert()" class="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded">閉じる</button>
+        </div>
+    </div>
+
+    <script>
+        /**
+         * Function to show the custom alert message.
+         * We use a custom UI instead of window.alert to comply with safety and UI guidelines.
+         */
+        function showAlert() {
+            const alertBox = document.getElementById('custom-alert');
+            const messageEl = document.getElementById('alert-message');
+            
+            messageEl.innerText = "Hello World!";
+            alertBox.style.display = 'flex';
+        }
+
+        /**
+         * Closes the custom alert modal.
+         */
+        function closeAlert() {
+            const alertBox = document.getElementById('custom-alert');
+            alertBox.style.display = 'none';
+        }
+
+        // Window load check
+        window.onload = function() {
+            console.log("Welcome page loaded successfully.");
+        };
+    </script>
+</body>
+</html>
