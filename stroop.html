@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stroop Task - jsPsych</title>
+    
+    <!-- jsPsychコアと基本プラグインのインポート -->
     <script src="https://unpkg.com/jspsych@7.3.4"></script>
     <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
     <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.2.1"></script>
+    <!-- 【超重要】ID入力に必須な survey-text プラグインを確実にインポート -->
+    <script src="https://unpkg.com/@jspsych/plugin-survey-text@1.1.3"></script>
     <link rel="stylesheet" href="https://unpkg.com/jspsych@7.3.4/dist/jspsych.css">
     
     <style>
@@ -51,6 +55,47 @@
             padding: 2px 4px;
             white-space: nowrap;
         }
+
+        /* 参加者情報入力画面用の上品なモダンフォームスタイル */
+        .jspsych-survey-text-question {
+            margin: 30px 0;
+            text-align: left;
+        }
+        .jspsych-survey-text-question p {
+            font-size: 20px;
+            font-weight: bold;
+            margin-bottom: 12px;
+            color: #222222;
+        }
+        input[type="text"] {
+            font-size: 18px;
+            padding: 10px 14px;
+            border: 2px solid #cccccc;
+            border-radius: 6px;
+            width: 100%;
+            max-width: 350px;
+            box-sizing: border-box;
+            transition: border-color 0.2s;
+        }
+        input[type="text"]:focus {
+            border-color: #007bff;
+            outline: none;
+        }
+        
+        /* ボタンのスタイル調整 */
+        .jspsych-btn {
+            font-size: 18px !important;
+            padding: 10px 24px !important;
+            background-color: #007bff !important;
+            color: white !important;
+            border: none !important;
+            border-radius: 6px !important;
+            cursor: pointer !important;
+            transition: background-color 0.2s !important;
+        }
+        .jspsych-btn:hover {
+            background-color: #0056b3 !important;
+        }
     </style>
 </head>
 <body>
@@ -60,8 +105,86 @@
         const jsPsych = initJsPsych({
             display_element: 'jspsych-target',
             on_finish: function() {
-                // 実験終了時にCSVデータを画面に表示
-                jsPsych.data.displayData('csv');
+                // 安全にDOMへアクセスするための表示要素を取得
+                const display_element = jsPsych.getDisplayElement();
+                
+                display_element.innerHTML = `
+                    <div style="text-align: center; margin-top: 20%;">
+                        <h3>データを送信しています。ブラウザを閉じずに少々お待ちください...</h3>
+                        <p id="retry-msg" style="color: #666666; font-size: 16px; margin-top: 15px;"></p>
+                    </div>
+                `;
+
+                // 不要な行（教示や固定点、質問紙など）を自動的に除外し、Stroop試行（wordとcolorを持つデータ）のみを抽出
+                const stroop_data = jsPsych.data.get().filterCustom(function(trial) {
+                    return trial.word !== undefined && trial.color !== undefined;
+                });
+
+                // 2. 分析に必要とされる正確な7つの列のみを抽出・整形
+                const target_headers = ['subject_id', 'timestamp', 'word', 'color', 'condition', 'rt', 'correct'];
+                const data_array = stroop_data.values();
+                
+                // CSV行データの組み立て
+                let csv_rows = [target_headers.join(',')];
+                for (const row of data_array) {
+                    const values = target_headers.map(header => {
+                        const val = row[header] !== undefined ? row[header] : '';
+                        // CSVエスケープ処理（ダブルクォーテーションの重複エスケープ）
+                        const stringVal = String(val).replace(/"/g, '""');
+                        return `"${stringVal}"`;
+                    });
+                    csv_rows.push(values.join(','));
+                }
+                const csvData = csv_rows.join('\n');
+
+                // 3. 指定されたGASのWebアプリURL（CORSを極力引き起こさない設定で送信）
+                const gasWebappUrl = 'https://script.google.com/macros/s/AKfycbytB0xTM61GtLR9AbpKdvQKMHUvsjebA2y3uLfulqgfClJa7lVrS5By2-lZ7HLSnl1N/exec';
+
+                function sendData(retriesLeft, delay) {
+                    // CORSプレフライト制限を回避するため、'Content-Type'ヘッダーは一切指定せず
+                    // プレーンなテキスト(JSON文字列)としてそのままPOST送信します。
+                    fetch(gasWebappUrl, {
+                        method: 'POST',
+                        mode: 'no-cors', 
+                        body: JSON.stringify({ csvData: csvData })
+                    })
+                    .then(() => {
+                        // 送信成功時（no-cors仕様上、通信がサーバーへ到達した時点でここに遷移します）
+                        display_element.innerHTML = `
+                            <div style="text-align: center; margin-top: 20%;">
+                                <h3 style="color: #28a745;">送信処理を受け付けました。</h3>
+                                <p style="font-size: 18px; margin-top: 15px;">実験にご協力いただき、誠にありがとうございました！<br>スプレッドシートへのデータ反映には数秒かかる場合があります。<br>このタブを閉じてください。</p>
+                            </div>
+                        `;
+                    })
+                    .catch(err => {
+                        console.error("データ送信エラー:", err);
+                        
+                        if (retriesLeft > 0) {
+                            const nextDelay = delay * 2;
+                            const msgEl = document.getElementById('retry-msg');
+                            if (msgEl) {
+                                msgEl.innerText = `接続が一時的に失敗しました。再接続を試みています... (${delay / 1000}秒後にリトライ, 残り: ${retriesLeft}回)`;
+                            }
+                            setTimeout(() => {
+                                sendData(retriesLeft - 1, nextDelay);
+                            }, delay);
+                        } else {
+                            // リトライ上限に達した場合は、データ消失を防ぐため画面上にCSVを表示して手動バックアップを促す
+                            display_element.innerHTML = `
+                                <div style="text-align: center; margin-top: 10%; color: #dc3545; padding: 0 20px;">
+                                    <h3>データの自動送信に失敗しました。</h3>
+                                    <p style="font-size: 16px; color: #333333;">インターネットの回線状態を確認してください。お手数ですが、研究担当者までご連絡ください。</p>
+                                    <p style="font-size: 14px; color: #666666;">（以下のボックス内の全データをコピーして担当者に手動で共有頂くことも可能です）</p>
+                                    <textarea readonly style="width: 100%; max-width: 600px; height: 180px; margin-top: 15px; font-family: monospace; font-size: 12px; padding: 10px; border: 2px solid #dc3545; border-radius: 4px; box-sizing: border-box;">${csvData}</textarea>
+                                </div>
+                            `;
+                        }
+                    });
+                }
+
+                // 送信プロセスの開始（最大3回リトライ、初期ディレイ1000ms）
+                sendData(3, 1000);
             }
         });
 
@@ -111,6 +234,29 @@
             console.warn("Fullscreen API is not supported or allowed in this environment.");
         }
 
+        // 1. 参加者情報入力（ID取得）画面の設定
+        const participant_id_trial = {
+            type: jsPsychSurveyText,
+            questions: [
+                {
+                    prompt: "参加者ID（例：学籍番号）を入力してください：", 
+                    name: 'participant_id', 
+                    required: true,
+                    placeholder: "例: 2026A123"
+                }
+            ],
+            button_label: '送信して進む',
+            on_finish: function(data) {
+                // 入力されたIDを取得
+                const id = data.response.participant_id;
+                // 全ての記録用試行に自動的にsubject_idをグローバル追加
+                jsPsych.data.addProperties({
+                    subject_id: id
+                });
+            }
+        };
+        timeline.push(participant_id_trial);
+
         const instructions = {
             type: jsPsychHtmlKeyboardResponse,
             stimulus: `
@@ -136,6 +282,7 @@
         };
         timeline.push(instructions);
 
+        // 注視点 (500ms固定)
         const fixation = {
             type: jsPsychHtmlKeyboardResponse,
             stimulus: '<div class="fixation">+</div>',
@@ -143,17 +290,23 @@
             trial_duration: 500,
         };
 
+        // ストループ試行本体
         const stroop_trial = {
             type: jsPsychHtmlKeyboardResponse,
             stimulus: jsPsych.timelineVariable('stimulus_html'),
             choices: ['r', 'g', 'b'],
             data: jsPsych.timelineVariable('data'),
             on_finish: function(data) {
-                const correct = jsPsych.pluginAPI.compareKeys(data.response, jsPsych.timelineVariable('correct_response'));
-                data.correct = correct;
+                // 正誤判定：正答なら "true"、誤答なら "false" の文字列として必ず記録
+                const is_correct = jsPsych.pluginAPI.compareKeys(data.response, jsPsych.timelineVariable('correct_response'));
+                data.correct = is_correct ? "true" : "false";
+                
+                // 動的な実施日時（ミリ秒まで含むISO形式）を試行データに格納
+                data.timestamp = new Date().toISOString();
             }
         };
 
+        // 刺激提示間隔 (ITI: 1000ms固定)
         const iti = {
             type: jsPsychHtmlKeyboardResponse,
             stimulus: '',
@@ -161,6 +314,7 @@
             trial_duration: 1000,
         };
 
+        // テストの手順構成 (合計10試行)
         const test_procedure = {
             timeline: [fixation, stroop_trial, iti],
             timeline_variables: stimuli,
